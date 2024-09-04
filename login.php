@@ -1,8 +1,9 @@
 <?php
+session_start();
 require_once 'config.php';
 
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $username = $conn->real_escape_string($_POST['username']);
+function handleLoginRequest($conn) {
+    $username = $_POST['username'];
     $password = $_POST['password'];
 
     $stmt = $conn->prepare("SELECT user_id, password FROM users WHERE username = ?");
@@ -14,15 +15,24 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $user = $result->fetch_assoc();
         if (password_verify($password, $user['password'])) {
             $_SESSION['user_id'] = $user['user_id'];
-            exit();
+            echo json_encode(['success' => true]);
         } else {
-            echo json_encode(['success' => false, 'error' => "Invalid password"]);
+            echo json_encode(['success' => false, 'error' => "Invalid credentials"]);
         }
     } else {
-        echo json_encode(['success' => false, 'error' => "User not found"]);
+        echo json_encode(['success' => false, 'error' => "Invalid credentials"]);
     }
+
     $stmt->close();
     exit();
+}
+
+if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    handleLoginRequest($conn);
+}
+
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 ?>
 
@@ -36,62 +46,49 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <title>Login</title>
 </head>
 <body>
-<nav><img src="/src/octocrypt-logo.webp" height=64px width=64px><h1>OctoCrypt.eu </h1></nav>
-<div class="app">
-    <div class="container">
-        <center><h1>Login</h1></center>
-        <?php 
-        if (isset($_SESSION['message'])) {
-            echo "<p>{$_SESSION['message']}</p>";
-            unset($_SESSION['message']);
-        }
-        if (isset($error)) echo "<p style='color:red;'>$error</p>"; 
-        ?>
-        <form method="post" id="loginForm">
-            <center>
+    <nav>
+        <img src="/src/octocrypt-logo.webp" height="64" width="64" alt="OctoCrypt Logo">
+        <h1>OctoCrypt.eu</h1>
+    </nav>
+    <div class="app">
+        <div class="container">
+            <h1>Login</h1>
+            <form method="post" id="loginForm">
                 <input type="text" name="username" placeholder="Benutzername" required>
-                <br>
                 <input type="password" name="password" placeholder="Passwort" required>
-                <br>
+                <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
                 <input type="submit" value="Einloggen">
-            </center>
-            <br>
-        </form>
-        <p>Noch kein Konto? <a href="register.php">Registrieren</a></p>
+            </form>
+            <p>Noch kein Konto? <a href="register.php">Registrieren</a></p>
+        </div>
     </div>
-</div>
-<center><footer><a href="/legal/impressum">Impressum</a> - <a href="/legal/datenschutz">Datenschutz</a> - <a href="/legal/agb">AGBs</a></footer></center>
+    <footer>
+        <a href="/legal/impressum">Impressum</a> - 
+        <a href="/legal/datenschutz">Datenschutz</a> - 
+        <a href="/legal/agb">AGBs</a>
+    </footer>
 
-<script>
-async function handleLogin(event) {
-    event.preventDefault();
-    const form = event.target;
-    const formData = new FormData(form);
+    <script>
+    document.getElementById('loginForm').addEventListener('submit', async function(event) {
+        event.preventDefault();
+        const formData = new FormData(this);
 
-    try {
-        const response = await fetch('login.php', {
-            method: 'POST',
-            body: formData
-        });
+        try {
+            const response = await fetch('login.php', {
+                method: 'POST',
+                body: formData
+            });
+            const result = await response.json();
 
-        const result = await response.json();
-
-        if (result.success) {
-            // Login erfolgreich
-            const keysManaged = await manageKeys(formData.get('password'), result.encrypted_key);
-            if (keysManaged) {
+            if (result.success) {
                 window.location.href = 'index.php';
             } else {
-                alert('Login erfolgreich, aber es gab ein Problem mit der Schlüsselverwaltung. Bitte versuchen Sie es erneut.');
+                alert(result.error);
             }
-        } else {
-            // Login fehlgeschlagen
-            alert(result.error);
+        } catch (error) {
+            alert('Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.');
         }
-    } catch (error) {
-        console.error('Login error:', error);
-        alert('Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.');
-    }
-}
-</script>
-?>
+    });
+    </script>
+</body>
+</html>
