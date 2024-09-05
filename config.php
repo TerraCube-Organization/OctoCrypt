@@ -68,3 +68,13 @@ date_default_timezone_set('Europe/Berlin');
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
+
+// Rate Limiting 
+function checkRateLimit($key, $limit, $period) {
+    global $redis;
+    $current = $redis->incr($key);
+    if ($current === 1) {
+        $redis->expire($key, $period);
+    }
+    return $current > $limit;
+}
