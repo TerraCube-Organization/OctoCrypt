@@ -52,7 +52,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 
 // Implementieren Sie hier eine Funktion zur Ratenbegrenzung
-if (checkRateLimit($_SERVER['REMOTE_ADDR'])) {
+if (checkRateLimit($_SERVER['REMOTE_ADDR'], 5, 60)) {
     http_response_code(429);
     die("Zu viele Anmeldeversuche. Bitte versuchen Sie es später erneut.");
 }
